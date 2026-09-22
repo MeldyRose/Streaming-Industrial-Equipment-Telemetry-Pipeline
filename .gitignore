@@ -1,0 +1,10 @@
+.env
+__pycache__/
+logs/
+plugins/
+data/processed/*
+data/raw/*
+!data/processed/.gitkeep
+!data/raw/.gitkeep
+producer/*
+!producer/sensor_simulator.py

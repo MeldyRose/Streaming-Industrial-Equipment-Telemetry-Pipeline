@@ -25,7 +25,7 @@ EQUIPMENT = [
     }
 ]
 
-KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
-KAFKA_TOPIC = "machine-telemetry"
+KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"  # Replace with your Kafka bootstrap servers
+KAFKA_TOPIC = "machine-telemetry"  # Replace with your Kafka topic name
 
 EVENT_INTERVAL_SECONDS = 2

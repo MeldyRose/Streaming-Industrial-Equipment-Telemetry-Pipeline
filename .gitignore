@@ -8,3 +8,6 @@ data/raw/*
 !data/raw/.gitkeep
 producer/*
 !producer/sensor_simulator.py
+spark/*
+!spark/silver_stream.py
+!spark/gold_stream.py

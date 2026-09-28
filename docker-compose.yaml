@@ -77,12 +77,55 @@ services:
     ports:
       - 9092:9092
 
+  spark-silver:
+    image: apache/spark:4.0.1-python3
+    container_name: telemetry-spark-silver
+
+    environment:
+      AWS_ACCESS_KEY_ID: ${KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${SECRET_KEY}
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+
+    volumes:
+      - ./spark:/app
+
+    working_dir: /app
+          
+    command: >
+      /opt/spark/bin/spark-submit
+      --conf spark.jars.ivy=/tmp/.ivy2
+      --packages org.apache.hadoop:hadoop-aws:3.4.1,com.amazonaws:aws-java-sdk-bundle:1.12.780
+      /app/silver_stream.py
+
+  spark-gold:
+    image: apache/spark:4.0.1-python3
+    container_name: telemetry-spark-gold
+
+    environment:
+      AWS_ACCESS_KEY_ID: ${KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${SECRET_KEY}
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+
+    volumes:
+      - ./spark:/app
+
+    working_dir: /app
+          
+    command: >
+      /opt/spark/bin/spark-submit
+      --conf spark.jars.ivy=/tmp/.ivy2
+      --packages org.apache.hadoop:hadoop-aws:3.4.1,com.amazonaws:aws-java-sdk-bundle:1.12.780
+      /app/gold_stream.py
+
+
   postgres:
     image: postgres:13
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow #default password for Airflow is "airflow"
-      POSTGRES_DB: airflow 
+      POSTGRES_USER: ${POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow} #This is the default password for Airflow
+      POSTGRES_DB: ${POSTGRES_DB:-airflow}
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:

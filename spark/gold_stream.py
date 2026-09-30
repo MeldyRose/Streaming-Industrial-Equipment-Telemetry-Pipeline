@@ -5,7 +5,8 @@ from pyspark.sql.types import(
     StructType,
     StructField,
     StringType,
-    DoubleType
+    DoubleType,
+    TimestampType
 )
 
 aws_region = os.getenv("AWS_REGION")
@@ -41,7 +42,7 @@ spark.sparkContext.setLogLevel("WARN")
 silver_schema = StructType([
     StructField("machine_id", StringType()),
     StructField("equipment_type", StringType()),
-    StructField("timestamp", StringType()),
+    StructField("timestamp", TimestampType()),
     StructField("temperature_c", DoubleType()),
     StructField("humidity_percent", DoubleType()),
     StructField("vibration_mm_s", DoubleType()),
@@ -56,7 +57,6 @@ silver_df=(
     .parquet(
         f"s3a://{bucket_name}/silver/"
     )
-    .withColumn("timestamp", to_timestamp("timestamp"))
 )
 
 if "equipment_status" not in silver_df.columns:

@@ -10,7 +10,8 @@ This project builds a streaming telemetry data pipeline that:
 - Transforms and cleans raw data using PySpark Structured Streaming on Docker to add equipment status indicators and partition by equipment type (Silver layer)
 - Aggregates daily telemetry metrics and warning counts using PySpark and partitions by date (Gold layer)
 - Stores structured Medallion Architecture datasets (Bronze, Silver, Gold) in AWS S3 cloud storage
-- Provides data for query analysis via AWS Athena and visual dashboards in Power BI (In Progress)
+- Enables SQL queries in AWS Athena for equipment health and anomaly analysis
+- Prepares analytical data for interactive reporting in Power BI (In Progress)
 
 ## Tech Stack
 
@@ -27,7 +28,7 @@ This project builds a streaming telemetry data pipeline that:
 
 - Python 3.12+
 - Docker & Docker Compose
-- AWS Account (S3 Bucket & IAM Access Keys)
+- AWS Account (S3 Bucket & IAM Access Keys with Athena access)
 - Git
 > I personally developed/tested on Python 3.14.6
 
@@ -82,7 +83,7 @@ Open `.env` and fill in your AWS credentials (`KEY_ID`, `SECRET_KEY`, `AWS_REGIO
 
 ### 5. Run the pipeline
 
-The streaming telemetry pipeline consists of data generation, ingestion to S3, and Spark streaming processing.
+The streaming telemetry pipeline consists of data generation, ingestion to S3, Spark streaming processing, and Athena SQL querying.
 
 #### 5.1 Start Infrastructure with Docker
 
@@ -124,14 +125,21 @@ Run the PySpark streaming applications using Docker:
    docker compose run spark-gold
    ```
 
+#### 5.5 Query Telemetry Data via AWS Athena (SQL)
+
+1. **Create Table**: Execute `config/sql/create_database.sql` in AWS Athena to register the external table `silver_db.telemetry_data` referencing the Parquet data in `s3://<bucket>/silver/`.
+2. **Run Analytical Queries**: Execute `config/sql/analysis_queries.sql` to run anomaly detection, machine metric averages, peak readings, and warning rate percentage queries.
+
 ## ELT Pipeline
+
+![ELT Architecture](ELT_Architecture.png)
 
 ```text
 [ Sensor Simulator (Python) ] ──> [ Apache Kafka (Docker) ] ──> [ S3 Consumer (Python) ] ──> [ AWS S3 (Bronze JSON) ]
                                                                                                     │
                                                                                                     ▼
-[ AWS Athena / Power BI ] <── [ AWS S3 (Gold Parquet) ] <── [ PySpark Gold ] <── [ PySpark Silver ] <──┘
-  (In Progress)               (Partitioned by Date)          (Aggregations)     (Partitioned by Equipment)
+[ Power BI ] <── [ AWS Athena (SQL Queries) ] <── [ AWS S3 (Gold/Silver Parquet) ] <── [ PySpark Silver / Gold ]
+(In Progress)   (config/sql/)                    (Partitioned Datasets)                 (Docker Containers)
 ```
 
 ## Project Structure
@@ -139,6 +147,9 @@ Run the PySpark streaming applications using Docker:
 Streaming-Industrial-Equipment-Telemetry-Pipeline/
 │
 ├── config/
+│   ├── sql/
+│   │   ├── analysis_queries.sql
+│   │   └── create_database.sql
 │   └── equipment_config.py
 │
 ├── consumer/
@@ -193,11 +204,23 @@ The processed equipment telemetry data includes:
 
 ## Analysis
 
-The telemetry data produced by the streaming pipeline is structured using a Medallion Architecture (Bronze -> Silver -> Gold) stored in AWS S3:
+The telemetry data produced by the streaming pipeline is structured using a Medallion Architecture (Bronze -> Silver -> Gold) stored in AWS S3 and queried in AWS Athena:
 
 - **Bronze Layer**: Raw JSON records ingested directly from Kafka streams.
 - **Silver Layer**: Cleaned telemetry with timestamps and status condition flags (`NORMAL` / `WARNING`), partitioned by `equipment_type`.
 - **Gold Layer**: Daily aggregated operational metrics (average/max temperature, vibration, pressure, and total warning counts), partitioned by `date`.
+
+### Athena SQL Analytical Queries
+
+The SQL scripts in `config/sql/` provide insights into machine operational health:
+
+1. **Abnormal Sensor Conditions**: Counts warning/critical events per machine.
+2. **Equipment Type Averages**: Calculates average temperature, humidity, vibration, and pressure grouped by machine.
+3. **Peak Temperature**: Identifies machines with maximum temperature readings.
+4. **Peak Humidity**: Identifies machines with maximum humidity readings.
+5. **Peak Vibration**: Identifies machines with maximum vibration levels.
+6. **Peak Pressure**: Identifies machines with maximum pressure readings.
+7. **Abnormal Condition Rate**: Calculates warning rate percentage (`warning_count / total_readings * 100`) for each machine.
 
 ### Current Status (In Progress)
 
@@ -205,10 +228,11 @@ The telemetry data produced by the streaming pipeline is structured using a Meda
 - [x] Raw Bronze data ingested from Kafka and loaded into AWS S3 cloud storage.
 - [x] PySpark streaming on Docker transforming Bronze data to Silver layer with partitioning by `equipment_type`.
 - [x] PySpark streaming aggregating Silver data to Gold layer with partitioning by `date` and writing back to S3.
-- [ ] AWS Athena SQL queries to inspect Silver/Gold S3 buckets and connect directly to Power BI for visualization (*In Progress*).
+- [x] Created AWS Athena DDL table definition (`create_database.sql`) and 7 analytical queries (`analysis_queries.sql`) in `config/sql/`.
+- [ ] Connect AWS Athena queries to Power BI for interactive dashboard reports (*In Progress*).
 
 ## Future Improvements
 
-- Finalize AWS Athena database integration and Power BI analytical reports.
+- Finalize Power BI dashboard visualizations connected to AWS Athena.
 - Add data quality tests and assertions (e.g. Great Expectations / Pytest).
 - Automate pipeline orchestration using Apache Airflow DAGs.

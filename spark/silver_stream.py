@@ -62,7 +62,7 @@ silver_df = (
     .withColumn(
         "equipment_status",
         when(
-            (col("temperature_c") > 85) | (col("vibration_mm_s") > 5),
+            (col("temperature_c") > 85) | (col("vibration_mm_s") > 5) | (col("pressure_bar") > 7) | (col("humidity_percent") > 75),
             "WARNING"
         ).otherwise("NORMAL")
     )

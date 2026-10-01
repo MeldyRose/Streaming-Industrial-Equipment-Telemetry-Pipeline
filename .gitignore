@@ -11,3 +11,6 @@ producer/*
 spark/*
 !spark/silver_stream.py
 !spark/gold_stream.py
+!config/sql
+!config/equipment_config.py
+config/*

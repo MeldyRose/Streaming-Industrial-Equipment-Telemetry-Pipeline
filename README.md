@@ -1,17 +1,19 @@
 # Streaming Industrial Equipment Telemetry Pipeline
 
-Streaming Industrial Equipment Telemetry Pipeline is an individual project for learning data engineering and building an end-to-end streaming data pipeline to collect, transform, and analyze real-time telemetry data from industrial equipment.
+Streaming Industrial Equipment Telemetry Pipeline is an individual project for learning data engineering and building an end-to-end, containerized streaming data pipeline to collect, transform, and analyze real-time telemetry data from industrial equipment.
 
 ## Project Overview
 
-This project builds a streaming telemetry data pipeline that:
-- Simulates telemetry sensor data from industrial equipment (Turbine, Compressor, Pump) using Python and streams it via Apache Kafka on Docker
+This project builds a fully containerized streaming telemetry data pipeline that:
+- Simulates telemetry sensor data from industrial equipment (Turbines, Compressors, Pumps) using Python and streams events via Apache Kafka on Docker
 - Consumes streaming telemetry events and batches raw data into AWS S3 as raw JSON (Bronze layer)
-- Transforms and cleans raw data using PySpark Structured Streaming on Docker to add equipment status indicators and partition by equipment type (Silver layer)
-- Aggregates daily telemetry metrics and warning counts using PySpark and partitions by date (Gold layer)
+- Transforms and cleans raw data using PySpark Structured Streaming on Docker to add equipment status indicators (`NORMAL` / `WARNING`) and partition by equipment type (Silver layer)
+- Aggregates daily telemetry metrics and warning counts using PySpark on Docker and partitions by date (Gold layer)
 - Stores structured Medallion Architecture datasets (Bronze, Silver, Gold) in AWS S3 cloud storage
 - Enables SQL queries in AWS Athena for equipment health and anomaly analysis
 - Prepares analytical data for interactive reporting in Power BI (In Progress)
+
+> **Architectural Note:** The entire pipeline (Kafka broker, sensor simulation producer, S3 batch consumer, and PySpark streaming jobs) is fully containerized and automatically managed via **Docker Compose**. Orchestration tools like Apache Airflow were intentionally omitted to avoid unnecessary complexity, as the producer serves as a continuous simulation source and all pipeline components run seamlessly as containerized streaming services.
 
 ## Tech Stack
 
@@ -21,7 +23,6 @@ This project builds a streaming telemetry data pipeline that:
 - AWS S3
 - AWS Athena
 - Docker & Docker Compose
-- Apache Airflow
 - Power BI
 
 ## Prerequisites
@@ -56,7 +57,7 @@ Activate it:
 
 ### 3. Install dependencies
 
-* **Docker (Recommended)**: Services and Spark containers run with dependencies pre-configured inside Docker containers.
+* **Docker (Recommended)**: Dependencies listed in `requirements.txt` are automatically installed inside the containers via the `Dockerfile` when you run `docker compose up --build`. No manual installation is needed!
 * **Local Python Execution (Fallback)**: If running producer or consumer scripts manually outside Docker, install dependencies inside your virtual environment:
 
   ```bash
@@ -77,69 +78,65 @@ Or on **Windows Command Prompt (cmd)**:
 copy .env.example .env
 ```
 
-Open `.env` and fill in your AWS credentials (`KEY_ID`, `SECRET_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`) and database configuration.
+Open `.env` and fill in your AWS credentials (`KEY_ID`, `SECRET_KEY`, `AWS_REGION`, `S3_BUCKET_NAME`).
 
 > **Security Note:** Never commit your `.env` file or API keys to Git (`.env` is included in `.gitignore`).
 
 ### 5. Run the pipeline
 
-The streaming telemetry pipeline consists of data generation, ingestion to S3, Spark streaming processing, and Athena SQL querying.
+The entire streaming pipeline (Kafka, sensor producer, S3 consumer, and Spark streaming containers) is fully automated with Docker Compose.
 
-#### 5.1 Start Infrastructure with Docker
+#### 5.1 Build and Start Containerized Pipeline with Docker Compose
 
-Start Kafka, PySpark, Airflow, and auxiliary services using Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-#### 5.2 Simulate Telemetry Data Generation
-
-Run the Python sensor simulator to produce real-time sensor events for industrial machines into the Kafka topic `machine-telemetry`:
+Run all services in background mode:
 
 ```bash
-python -m producer.sensor_simulator
+docker compose up --build -d
 ```
 
-#### 5.3 Ingest Raw Telemetry to AWS S3 (Bronze Layer)
+This single command builds the custom Python container image using `Dockerfile` and launches:
+- **`kafka`**: Apache Kafka message broker for real-time telemetry streaming
+- **`producer`**: Python sensor simulator producing real-time telemetry events to Kafka
+- **`consumer`**: Python S3 consumer batching raw telemetry messages into JSON and uploading to AWS S3 (`bronze/` folder)
+- **`spark-silver`**: PySpark Structured Streaming job enriching raw Bronze data, adding warning flags, and writing Parquet files to AWS S3 (`silver/` folder, partitioned by `equipment_type`)
+- **`spark-gold`**: PySpark Structured Streaming job calculating 1-day aggregated operational metrics and writing Parquet files to AWS S3 (`gold/` folder, partitioned by `date`)
 
-Run the S3 consumer script to batch Kafka stream messages into raw JSON format and upload them to S3:
+#### 5.2 Verify Running Services
+
+To verify all pipeline containers are running:
 
 ```bash
-python -m consumer.s3
+docker compose ps
 ```
 
-#### 5.4 Execute PySpark Streaming Jobs (Silver & Gold Layers)
+To view logs for any specific container (e.g. producer or consumer):
 
-Run the PySpark streaming applications using Docker:
+```bash
+docker compose logs -f producer
+docker compose logs -f consumer
+```
 
-1. **Silver Streaming Transformation**:
-   Reads raw Bronze JSON from S3, parses schemas, flags equipment warnings (`WARNING` if temperature > 85°C or vibration > 5 mm/s), and writes Parquet files to `s3://<bucket>/silver/` partitioned by `equipment_type`.
-   ```bash
-   docker compose run spark-silver
-   ```
+#### 5.3 Stop Pipeline Services
 
-2. **Gold Streaming Aggregation**:
-   Reads Silver Parquet data from S3, applies 1-day window aggregations (calculating daily average/max temperature, vibration, pressure, total readings, and warning counts), and writes Parquet files to `s3://<bucket>/gold/` partitioned by `date`.
-   ```bash
-   docker compose run spark-gold
-   ```
+To stop all running services:
 
-#### 5.5 Query Telemetry Data via AWS Athena (SQL)
+```bash
+docker compose down
+```
+
+#### 5.4 Query Telemetry Data via AWS Athena (SQL)
 
 1. **Create Table**: Execute `config/sql/create_database.sql` in AWS Athena to register the external table `silver_db.telemetry_data` referencing the Parquet data in `s3://<bucket>/silver/`.
 2. **Run Analytical Queries**: Execute `config/sql/analysis_queries.sql` to run anomaly detection, machine metric averages, peak readings, and warning rate percentage queries.
 
 ## ELT Pipeline
 
-![ELT Architecture](ELT_Architecture.png)
-
 ```text
 [ Sensor Simulator (Python) ] ──> [ Apache Kafka (Docker) ] ──> [ S3 Consumer (Python) ] ──> [ AWS S3 (Bronze JSON) ]
-                                                                                                    │
+  (Containerized Producer)        (Message Broker)              (Containerized Consumer)            │
                                                                                                     ▼
 [ Power BI ] <── [ AWS Athena (SQL Queries) ] <── [ AWS S3 (Gold/Silver Parquet) ] <── [ PySpark Silver / Gold ]
-(In Progress)   (config/sql/)                    (Partitioned Datasets)                 (Docker Containers)
+(In Progress)   (config/sql/)                    (Partitioned Datasets)                 (Containerized Spark Jobs)
 ```
 
 ## Project Structure
@@ -154,12 +151,6 @@ Streaming-Industrial-Equipment-Telemetry-Pipeline/
 │
 ├── consumer/
 │   └── s3.py
-│
-├── dags/
-│
-├── logs/
-│
-├── plugins/
 │
 ├── producer/
 │   ├── create_topic.py
@@ -178,6 +169,7 @@ Streaming-Industrial-Equipment-Telemetry-Pipeline/
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yaml
+├── Dockerfile
 ├── LICENSE
 ├── README.md
 └── requirements.txt
@@ -224,6 +216,7 @@ The SQL scripts in `config/sql/` provide insights into machine operational healt
 
 ### Current Status (In Progress)
 
+- [x] Full end-to-end containerization with `Dockerfile` and `docker-compose.yaml` (running Kafka broker, sensor producer simulator, S3 batch consumer, PySpark Silver, and PySpark Gold containers).
 - [x] Python data generation simulating industrial equipment sensors streaming to Kafka on Docker.
 - [x] Raw Bronze data ingested from Kafka and loaded into AWS S3 cloud storage.
 - [x] PySpark streaming on Docker transforming Bronze data to Silver layer with partitioning by `equipment_type`.
@@ -235,4 +228,3 @@ The SQL scripts in `config/sql/` provide insights into machine operational healt
 
 - Finalize Power BI dashboard visualizations connected to AWS Athena.
 - Add data quality tests and assertions (e.g. Great Expectations / Pytest).
-- Automate pipeline orchestration using Apache Airflow DAGs.

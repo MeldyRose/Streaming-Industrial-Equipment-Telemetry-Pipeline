@@ -61,34 +61,38 @@ def upload_batch_to_s3(events):
 
 #Limiting the number of messages in each batch and the time interval. If either condition is met, the batch will be uploaded to S3.
 #It is limited due to cost and performance considerations. Uploading too frequently or with too many messages can lead to increased costs and potential performance issues. By batching messages, we can reduce the number of S3 PUT requests and optimize the overall performance of the system.
-buffer = []
+def main():
+    buffer = []
 
-buffer_start_time = time.monotonic()
-consumer_start_time = time.monotonic()
+    buffer_start_time = time.monotonic()
+    consumer_start_time = time.monotonic()
 
-total_messages_processed = 0
+    total_messages_processed = 0
 
-try:
+    try:
 
-    for message in consumer:
-        buffer.append(message.value)
-        total_messages_processed += 1
+        for message in consumer:
+            buffer.append(message.value)
+            total_messages_processed += 1
 
-        elapsed_time = time.monotonic() - buffer_start_time
-        total_run_time = time.monotonic() - consumer_start_time
+            elapsed_time = time.monotonic() - buffer_start_time
+            total_run_time = time.monotonic() - consumer_start_time
 
-        if len(buffer) >= BATCH_SIZE or elapsed_time >= BATCH_INTERVAL_SECONDS:
+            if len(buffer) >= BATCH_SIZE or elapsed_time >= BATCH_INTERVAL_SECONDS:
+                upload_batch_to_s3(buffer)
+                buffer.clear()
+                buffer_start_time = time.monotonic()
+
+            if total_run_time >= MAX_RUN_TIME_SECONDS or total_messages_processed >= MAX_MESSAGES:
+                print("Max run time or max messages reached. Exiting...")
+                break
+
+    finally:
+        if buffer:
             upload_batch_to_s3(buffer)
             buffer.clear()
-            buffer_start_time = time.monotonic()
+        consumer.close()
+        print("Consumer closed. Exiting...")
 
-        if total_run_time >= MAX_RUN_TIME_SECONDS or total_messages_processed >= MAX_MESSAGES:
-            print("Max run time or max messages reached. Exiting...")
-            break
-
-finally:
-    if buffer:
-        upload_batch_to_s3(buffer)
-        buffer.clear()
-    consumer.close()
-    print("Consumer closed. Exiting...")
+if __name__ == "__main__":
+    main()

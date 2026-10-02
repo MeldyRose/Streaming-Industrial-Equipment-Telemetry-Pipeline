@@ -11,7 +11,7 @@ This project builds a fully containerized streaming telemetry data pipeline that
 - Aggregates daily telemetry metrics and warning counts using PySpark on Docker and partitions by date (Gold layer)
 - Stores structured Medallion Architecture datasets (Bronze, Silver, Gold) in AWS S3 cloud storage
 - Enables SQL queries in AWS Athena for equipment health and anomaly analysis
-- Prepares analytical data for interactive reporting in Power BI (In Progress)
+- Prepares analytical data for interactive reporting and monitoring in Power BI (See [PowerBI/README.md](PowerBI/README.md))
 
 > **Architectural Note:** The entire pipeline (Kafka broker, sensor simulation producer, S3 batch consumer, and PySpark streaming jobs) is fully containerized and automatically managed via **Docker Compose**. Orchestration tools like Apache Airflow were intentionally omitted to avoid unnecessary complexity, as the producer serves as a continuous simulation source and all pipeline components run seamlessly as containerized streaming services.
 
@@ -135,8 +135,8 @@ docker compose down
 [ Sensor Simulator (Python) ] ──> [ Apache Kafka (Docker) ] ──> [ S3 Consumer (Python) ] ──> [ AWS S3 (Bronze JSON) ]
   (Containerized Producer)        (Message Broker)              (Containerized Consumer)            │
                                                                                                     ▼
-[ Power BI ] <── [ AWS Athena (SQL Queries) ] <── [ AWS S3 (Gold/Silver Parquet) ] <── [ PySpark Silver / Gold ]
-(In Progress)   (config/sql/)                    (Partitioned Datasets)                 (Containerized Spark Jobs)
+[ Power BI Dashboard ] <── [ AWS Athena (SQL Queries) ] <── [ AWS S3 (Gold/Silver Parquet) ] <── [ PySpark Silver / Gold ]
+ (PowerBI/README.md)        (config/sql/)                    (Partitioned Datasets)                 (Containerized Spark Jobs)
 ```
 
 ## Project Structure
@@ -151,6 +151,10 @@ Streaming-Industrial-Equipment-Telemetry-Pipeline/
 │
 ├── consumer/
 │   └── s3.py
+│
+├── PowerBI/
+│   ├── Analysis.png
+│   └── README.md
 │
 ├── producer/
 │   ├── create_topic.py
@@ -214,7 +218,7 @@ The SQL scripts in `config/sql/` provide insights into machine operational healt
 6. **Peak Pressure**: Identifies machines with maximum pressure readings.
 7. **Abnormal Condition Rate**: Calculates warning rate percentage (`warning_count / total_readings * 100`) for each machine.
 
-### Current Status (In Progress)
+### Current Status (Completed)
 
 - [x] Full end-to-end containerization with `Dockerfile` and `docker-compose.yaml` (running Kafka broker, sensor producer simulator, S3 batch consumer, PySpark Silver, and PySpark Gold containers).
 - [x] Python data generation simulating industrial equipment sensors streaming to Kafka on Docker.
@@ -222,9 +226,9 @@ The SQL scripts in `config/sql/` provide insights into machine operational healt
 - [x] PySpark streaming on Docker transforming Bronze data to Silver layer with partitioning by `equipment_type`.
 - [x] PySpark streaming aggregating Silver data to Gold layer with partitioning by `date` and writing back to S3.
 - [x] Created AWS Athena DDL table definition (`create_database.sql`) and 7 analytical queries (`analysis_queries.sql`) in `config/sql/`.
-- [ ] Connect AWS Athena queries to Power BI for interactive dashboard reports (*In Progress*).
+- [x] Connected telemetry datasets to Power BI for 5-day monitoring & risk analysis dashboard reports (See [PowerBI/README.md](PowerBI/README.md)).
 
 ## Future Improvements
 
-- Finalize Power BI dashboard visualizations connected to AWS Athena.
-- Add data quality tests and assertions (e.g. Great Expectations / Pytest).
+- Add automated data quality tests and assertions (e.g. Great Expectations / Pytest).
+- Set up automated CI/CD deployment workflow for pipeline testing.
